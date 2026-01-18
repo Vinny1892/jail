@@ -1,174 +1,178 @@
 # ai-jail
 
-Sandbox leve para executar agentes de IA e ferramentas de linha de comando com isolamento de sistema, baseado em [bubblewrap (bwrap)](https://github.com/containers/bubblewrap).
+Lightweight sandbox to run AI agents and command-line tools with strong filesystem isolation, built on top of [bubblewrap (bwrap)](https://github.com/containers/bubblewrap).
 
-A ideia é semelhante a uma `virtualenv`, mas focada em **isolar acesso ao filesystem**: o processo só enxerga o diretório do projeto (e alguns diretórios de sistema em read-only), reduzindo o risco de comandos perigosos como `rm -rf /` ou vazamento da sua `$HOME` real.
+It plays a role similar to a `virtualenv`, but focused on **isolating filesystem access**: processes only see the current project directory (and a few system directories as read-only), reducing the risk of dangerous commands such as `rm -rf /` or leaking your real `$HOME`.
 
 > **Status**: experimental / WIP
 
-## Requisitos
+## Requirements
 
-- Linux com suporte a user namespaces.
-- `bwrap` instalado e acessível no `PATH`.
-- Rust (stable) para compilar a ferramenta.
+- Linux with user namespace support.
+- `bwrap` installed and available on `PATH`.
+- Rust (stable) to build the tool from source.
 
-## Instalação
+## Installation
 
-### A partir do código-fonte
+### From source
 
-Clone o repositório e compile em modo release:
+Clone the repository and build in release mode:
 
 ```bash
-git clone <URL-do-repo> ai-jail
+git clone <REPO-URL> ai-jail
 cd ai-jail
-# opcional: ajustar edition no Cargo.toml e flags em .cargo/config.toml
+# optional: adjust edition in Cargo.toml and flags in .cargo/config.toml
 cargo build --release
 ```
 
-O binário ficará em `target/release/ai-jail`.
+The binary will be available at `target/release/ai-jail`.
 
-Opcionalmente, instale em algum diretório do `PATH` (ex.: `~/.local/bin`):
+Optionally, install it into a directory on your `PATH` (e.g. `~/.local/bin`):
 
 ```bash
 install -Dm755 target/release/ai-jail ~/.local/bin/ai-jail
 ```
 
-> **Nota sobre binário estático**: o projeto inclui um exemplo de `.cargo/config.toml` com `rustflags = ["-C", "target-feature=+crt-static"]`. Dependendo da sua toolchain/target, isso pode quebrar a compilação (especialmente com proc-macros). Se tiver problemas, comente ou remova essa configuração, ou configure um target `*-musl` adequado.
+> **Note about static binaries**: the project includes an example `.cargo/config.toml` with `rustflags = ["-C", "target-feature=+crt-static"]`. Depending on your toolchain/target, this may break compilation (especially with proc-macros). If you hit issues, comment out or remove that configuration, or configure an appropriate `*-musl` target.
 
-## Como funciona
+## How it works
 
-Em alto nível, `ai-jail` faz o seguinte:
+At a high level, `ai-jail` does the following:
 
-- Cria um novo namespace de usuário, PID, UTS, IPC (e opcionalmente de rede).
-- Monta diretórios de sistema como read-only: `/usr`, `/bin`, `/lib`, `/lib64`, `/etc`, `/opt`.
-- Liga (bind) o **diretório atual** (`$PWD`) com acesso de escrita e faz `--chdir` para ele.
-- Cria um `$HOME` temporário esparso em `/tmp`, com estrutura mínima (`.config`, `.local/share`, `.local/state/mise`).
-- Monta o `~/.config` real como read-only dentro desse HOME esparso.
-- Cria um `/etc/hosts` fake com `localhost` e hostname `ai-sandbox`.
-- Opcionalmente isola a rede usando `--unshare-net`.
-- Detecta `mise` (se disponível), monta seus diretórios em read-only e roda o snippet de inicialização antes do comando.
+- Creates new user, PID, UTS and IPC namespaces (and optionally network).
+- Mounts system directories as read-only: `/usr`, `/bin`, `/lib`, `/lib64`, `/etc`, `/opt`.
+- Bind-mounts the **current directory** (`$PWD`) with write access and uses `--chdir` to it.
+- Creates a sparse temporary `$HOME` under `/tmp` with a minimal structure (`.config`, `.local/share`, `.local/state/mise`).
+- Bind-mounts your real `~/.config` as read-only into that sparse HOME.
+- Provides a fake `/etc/hosts` with `localhost` and the hostname `ai-sandbox`.
+- Optionally isolates the network using `--unshare-net`.
+- Detects `mise` (if available), bind-mounts its directories as read-only and runs its initialization snippet before your command.
 
-Tudo isso é construído via `std::process::Command` chamando `bwrap` com os argumentos apropriados.
+All of this is wired together via `std::process::Command` calling `bwrap` with the appropriate arguments.
 
-## Uso
+## Usage
 
-Sintaxe básica:
+Basic syntax:
 
 ```bash
-ai-jail [OPÇÕES] [CMD] [ARGS...]
+ai-jail [OPTIONS] [CMD] [ARGS...]
 ```
 
-Se nenhum comando for fornecido, o padrão é abrir um `bash` interativo dentro do jail.
+If no command is provided, `ai-jail` starts an interactive `bash` shell inside the jail.
 
-### Exemplos
+### Examples
 
-Shell interativo no diretório do projeto atual:
+Interactive shell in the current project directory:
 
 ```bash
 ai-jail
 ```
 
-Executar um comando simples dentro do jail:
+Run a simple command inside the jail:
 
 ```bash
 ai-jail ls -la
 ```
 
-Mapear diretórios adicionais como read-only:
+Map additional directories as read-only:
 
 ```bash
-ai-jail --map /usr/share --map ../outro-projeto bash
+ai-jail --map /usr/share --map ../other-project bash
 ```
 
-Isolar também a rede (usa `--unshare-net` no `bwrap`):
+Also isolate the network (uses `--unshare-net` in `bwrap`):
 
 ```bash
 ai-jail --net bash
 ```
 
-Combinar opções:
+Combine options:
 
 ```bash
-ai-jail --net --map ../dados-agente crush
+ai-jail --net --map ../agent-data crush
 ```
 
-Dentro do shell, o prompt será customizado:
+Inside the shell, the prompt is customized:
 
 ```bash
-(jail) /caminho/do/projeto $
+(jail) /path/to/project $
 ```
 
-indicando que você está dentro do ambiente isolado.
+indicating that you are inside the isolated environment.
 
-## Flags e comportamento
+## Flags and behavior
 
 ### `--map <PATH>`
 
-Adiciona binds read-only extras. Cada `PATH` é montado em si mesmo:
+Adds extra read-only bind mounts. Each `PATH` is mounted onto itself:
 
-- `--map /algum/path` → `--ro-bind /algum/path /algum/path`
-- Caminhos relativos são resolvidos em relação ao diretório do projeto (`$PWD`).
-- Se o path não existir, o ai-jail emite um aviso em `stderr` e ignora.
+- `--map /some/path` → `--ro-bind /some/path /some/path`
+- Relative paths are resolved against the project directory (`$PWD`).
+- If the path does not exist, `ai-jail` prints a warning to `stderr` and skips it.
 
 ### `--net`
 
-Quando especificado, adiciona `--unshare-net` à chamada do `bwrap`, criando um namespace de rede isolado.
+When specified, adds `--unshare-net` to the `bwrap` invocation, creating an isolated network namespace.
 
-- Sem `--net`: o processo dentro do jail usa a mesma pilha de rede do host.
-- Com `--net`: a rede é isolada (útil para impedir que um agente faça chamadas de rede, dependendo de como o namespace for configurado).
+- Without `--net`: the process inside the jail shares the host network stack.
+- With `--net`: the network is isolated (useful to keep agents from making network calls, depending on how the namespace is configured).
 
-### Comando alvo `[CMD] [ARGS...]`
+### Target command `[CMD] [ARGS...]`
 
-- Se você passar um comando, ele é executado após o snippet de inicialização (Mise, se existir).
-- Se não passar, o padrão é `bash` interativo.
+- If you provide a command, it is executed after the initialization snippet (Mise, if present).
+- If you dont, the default is an interactive `bash` shell.
 
-## Desenvolvimento
+## Development
 
-### Rodando testes
+### Running tests
 
-O projeto inclui alguns testes unitários para as partes mais puras da lógica (`shell_escape`, helpers de `temp`, geração de snippet do `mise`):
+The project includes unit tests for the more self-contained pieces (`shell_escape`, helpers in `temp`, Mise initialization snippet):
 
 ```bash
 cargo test
 ```
 
-Se você estiver usando configurações de linkagem estática agressivas em `.cargo/config.toml` e tiver erros de `proc-macro`, comente/ajuste essas flags antes de rodar os testes.
+If you are using aggressive static-linking settings in `.cargo/config.toml` and hit `proc-macro` errors, comment/adjust those flags before running tests.
 
-### Estrutura do código
+### Project structure
 
-- `src/main.rs` – ponto de entrada, faz o parse da CLI e chama o `bwrap`.
-- `src/cli.rs` – definição da linha de comando utilizando `clap`.
-- `src/bwrap.rs` – construção dos argumentos do `bwrap` e execução do sandbox.
-- `src/temp.rs` – helpers para HOME esparso e `/etc/hosts` temporário.
-- `src/mise.rs` – detecção e inicialização de `mise` (se presente).
+- `src/main.rs` – entry point, parses CLI and invokes `bwrap`.
+- `src/cli.rs` – CLI definition using `clap`.
+- `src/bwrap.rs` – builds `bwrap` arguments and runs the sandbox.
+- `src/temp.rs` – helpers for sparse HOME and temporary `/etc/hosts`.
+- `src/mise.rs` – detection and initialization for `mise` (if present).
 
-## Contribuindo
+## Contributing
 
-Pull requests e issues são bem-vindos. Sugestões de melhorias de segurança, presets de mounts e integrações com ferramentas de agentes (Crush, Cursor, etc.) são especialmente interessantes.
+Pull requests and issues are welcome. Suggestions around security hardening, mount presets and integrations with agent tools (Crush, Cursor, etc.) are especially appreciated.
 
-Recomendações:
+Recommended workflow:
 
-1. Abra uma issue descrevendo a motivação da mudança (bugfix, feature, refactor, etc.).
-2. Crie uma branch e implemente a mudança com testes cobrindo o comportamento.
-3. Rode `cargo fmt`, `cargo clippy` (se estiver configurado) e `cargo test` antes de abrir o PR.
-4. Descreva claramente no PR o impacto esperado, riscos de segurança e como testar.
+1. Open an issue describing the motivation (bugfix, feature, refactor, etc.).
+2. Create a branch and implement the change with tests covering the behavior.
+3. Run `cargo fmt`, `cargo clippy` (if configured) and `cargo test` before opening the PR.
+4. Clearly describe in the PR the expected impact, security implications and how to test.
 
-## Versionamento
+## Versioning
 
-O projeto pretende seguir **versionamento semântico** (`MAJOR.MINOR.PATCH`):
+The project aims to follow **semantic versioning** (`MAJOR.MINOR.PATCH`):
 
-- Quebra de compatibilidade de CLI/comportamento → bump em `MAJOR`.
-- Novas features compatíveis → bump em `MINOR`.
-- Correções de bug e ajustes internos → bump em `PATCH`.
+- Breaking changes in CLI/behavior → bump `MAJOR`.
+- Backwards-compatible features → bump `MINOR`.
+- Bug fixes and internal adjustments → bump `PATCH`.
 
-Por estar em fase inicial, quebras de compatibilidade podem ocorrer com mais frequência até atingir uma 1.0 estável.
+While the project is in its early stages, breaking changes may happen more frequently until a stable 1.0 is reached.
 
-## Licença
+## Acknowledgments
 
-Este projeto é licenciado sob os termos da **MIT License**.
+This project is heavily inspired by the article **"AI Agents: Garantindo a Proteção do seu Sistema"** by [Fabio Akita (AkitaOnRails)](https://akitaonrails.com/), available at:
 
-Veja o arquivo `LICENSE` para o texto completo da licença.
+- https://akitaonrails.com/2026/01/10/ai-agents-garantindo-a-protecao-do-seu-sistema/
 
----
+Many of the ideas and shell scripts from that article served as a direct basis for `ai-jail`.
 
-Sinta-se à vontade para adaptar este README (especialmente URL do repositório, seção de licença e detalhes de build estático) conforme o projeto evoluir.
+## License
+
+This project is licensed under the terms of the **MIT License**.
+
+See the `LICENSE` file for the full license text.
