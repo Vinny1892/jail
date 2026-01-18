@@ -12,7 +12,7 @@ fn main() {
     match real_main() {
         Ok(code) => std::process::exit(code),
         Err(err) => {
-            eprintln!("erro: {err}");
+            eprintln!("error: {err}");
             std::process::exit(1);
         }
     }
