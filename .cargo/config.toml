@@ -1,0 +1,5 @@
+[build]
+# Ajuste o target se quiser usar musl (por exemplo: x86_64-unknown-linux-musl).
+# Para muitos ambientes, apenas forçar crt-static já ajuda a tornar o binário mais autocontido.
+# OBS: desativado por padrão para evitar problemas com proc-macros (ex.: clap_derive).
+# rustflags = ["-C", "target-feature=+crt-static"]
