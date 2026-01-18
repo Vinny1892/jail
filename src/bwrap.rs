@@ -10,28 +10,28 @@ use crate::cli::Cli;
 use crate::mise;
 use crate::temp;
 
-/// Constrói os argumentos do bwrap e executa o sandbox.
+/// Build bubblewrap arguments and run the sandbox.
 pub fn run_bwrap(cli: &Cli) -> Result<i32> {
-    let project_dir = env::current_dir().context("Falha ao obter diretório atual (projeto)")?;
-    let home = env::var("HOME").context("Variável de ambiente HOME não definida")?;
+let project_dir = env::current_dir().context("Failed to get current directory (project)")?;
+let home = env::var("HOME").context("HOME environment variable is not set")?;
     let home_path = Path::new(&home);
 
-    let (_sparse_home_dir_handle, sparse_home_path) =
-        temp::create_sparse_home().context("Falha ao criar HOME esparso temporário")?;
-    let hosts_file = temp::create_hosts_file("ai-sandbox")
-        .context("Falha ao criar arquivo temporário de hosts")?;
+let (_sparse_home_dir_handle, sparse_home_path) =
+        temp::create_sparse_home().context("Failed to create temporary sparse HOME")?;
+let hosts_file = temp::create_hosts_file("ai-sandbox")
+        .context("Failed to create temporary hosts file")?;
 
     let real_home_config = temp::real_home_config(home_path);
 
-    // Detecta Mise (se existir).
+// Detect mise if available.
     let mise_cfg = match mise::detect_mise() {
         Ok(Some(cfg)) => {
-            eprintln!("Mise detectado em {}", cfg.bin_path.display());
+eprintln!("Detected mise at {}", cfg.bin_path.display());
             Some(cfg)
         }
         Ok(None) => None,
         Err(err) => {
-            eprintln!("Aviso: falha ao detectar Mise: {err}");
+eprintln!("Warning: failed to detect mise: {err}");
             None
         }
     };
@@ -74,7 +74,7 @@ pub fn run_bwrap(cli: &Cli) -> Result<i32> {
     args.push("--tmpfs".into());
     args.push("/run".into());
 
-    // Diretórios de sistema read-only.
+// System directories mounted read-only.
     for sys_dir in ["/usr", "/bin", "/lib", "/lib64", "/etc", "/opt"] {
         if Path::new(sys_dir).exists() {
             args.push("--ro-bind".into());
@@ -129,10 +129,10 @@ pub fn run_bwrap(cli: &Cli) -> Result<i32> {
         }
     }
 
-    // Binds extras via --map PATH (sempre read-only).
+// Extra binds via --map PATH (always read-only).
     for path in &cli.maps {
         if !path.exists() {
-            eprintln!("Aviso: caminho passado em --map não existe, ignorando: {}", path.display());
+eprintln!("Warning: path passed to --map does not exist, skipping: {}", path.display());
             continue;
         }
         let abs = if path.is_absolute() {
@@ -145,19 +145,19 @@ pub fn run_bwrap(cli: &Cli) -> Result<i32> {
         args.push(abs.as_os_str().into());
     }
 
-    // Prompt custom dentro do jail.
+// Custom prompt inside the jail.
     args.push("--setenv".into());
     args.push("PS1".into());
     args.push("(jail) \\w \\$ ".into());
 
-    // Comando final a executar.
+// Final command to execute.
     args.push("bash".into());
     args.push("-c".into());
     args.push(OsString::from(cmd_string));
 
-    eprintln!("Jail ativo em: {}", project_dir.display());
+eprintln!("Jail active at: {}", project_dir.display());
     if cli.net {
-        eprintln!("Rede isolada (--net) ativada.");
+eprintln!("Isolated network (--net) enabled.");
     }
 
     let status = Command::new("bwrap")
@@ -165,14 +165,14 @@ pub fn run_bwrap(cli: &Cli) -> Result<i32> {
         .status()
         .map_err(|err| match err.kind() {
             io::ErrorKind::NotFound => anyhow::Error::new(err)
-                .context("bwrap não encontrado no PATH. Instale o bubblewrap (bwrap)."),
+.context("bwrap not found in PATH. Please install bubblewrap (bwrap)."),
             _ => anyhow::Error::new(err),
         })?;
 
     if let Some(code) = status.code() {
         Ok(code)
     } else {
-        bail!("Processo encerrado por sinal");
+bail!("Process terminated by signal");
     }
 }
 

@@ -18,8 +18,8 @@ pub fn detect_mise() -> Result<Option<MiseConfig>> {
         Err(_) => return Ok(None),
     };
 
-    // Diretório de dados típico: ~/.local/share/mise
-    let home = env::var("HOME").context("HOME não definido no ambiente")?;
+// Typical data directory: ~/.local/share/mise
+    let home = env::var("HOME").context("HOME not set in environment")?;
     let home_path = Path::new(&home);
     let data_dir = {
         let candidate = home_path.join(".local/share/mise");
