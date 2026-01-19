@@ -1,4 +1,4 @@
-# ai-jail
+# jail
 
 Lightweight sandbox to run AI agents and command-line tools with strong filesystem isolation, built on top of [bubblewrap (bwrap)](https://github.com/containers/bubblewrap).
 
@@ -19,25 +19,25 @@ It plays a role similar to a `virtualenv`, but focused on **isolating filesystem
 Clone the repository and build in release mode:
 
 ```bash
-git clone <REPO-URL> ai-jail
-cd ai-jail
+git clone <REPO-URL> jail
+cd jail
 # optional: adjust edition in Cargo.toml and flags in .cargo/config.toml
 cargo build --release
 ```
 
-The binary will be available at `target/release/ai-jail`.
+The binary will be available at `target/release/jail`.
 
 Optionally, install it into a directory on your `PATH` (e.g. `~/.local/bin`):
 
 ```bash
-install -Dm755 target/release/ai-jail ~/.local/bin/ai-jail
+install -Dm755 target/release/jail ~/.local/bin/jail
 ```
 
 > **Note about static binaries**: the project includes an example `.cargo/config.toml` with `rustflags = ["-C", "target-feature=+crt-static"]`. Depending on your toolchain/target, this may break compilation (especially with proc-macros). If you hit issues, comment out or remove that configuration, or configure an appropriate `*-musl` target.
 
 ## How it works
 
-At a high level, `ai-jail` does the following:
+At a high level, `jail` does the following:
 
 - Creates new user, PID, UTS and IPC namespaces (and optionally network).
 - Mounts system directories as read-only: `/usr`, `/bin`, `/lib`, `/lib64`, `/etc`, `/opt`.
@@ -55,41 +55,41 @@ All of this is wired together via `std::process::Command` calling `bwrap` with t
 Basic syntax:
 
 ```bash
-ai-jail [OPTIONS] [CMD] [ARGS...]
+jail [OPTIONS] [CMD] [ARGS...]
 ```
 
-If no command is provided, `ai-jail` starts an interactive `bash` shell inside the jail.
+If no command is provided, `jail` starts an interactive `bash` shell inside the jail.
 
 ### Examples
 
 Interactive shell in the current project directory:
 
 ```bash
-ai-jail
+jail
 ```
 
 Run a simple command inside the jail:
 
 ```bash
-ai-jail ls -la
+jail ls -la
 ```
 
 Map additional directories as read-only:
 
 ```bash
-ai-jail --map /usr/share --map ../other-project bash
+jail --map /usr/share --map ../other-project bash
 ```
 
 Also isolate the network (uses `--unshare-net` in `bwrap`):
 
 ```bash
-ai-jail --net bash
+jail --net bash
 ```
 
 Combine options:
 
 ```bash
-ai-jail --net --map ../agent-data crush
+jail --net --map ../agent-data crush
 ```
 
 Inside the shell, the prompt is customized:
@@ -108,7 +108,7 @@ Adds extra read-only bind mounts. Each `PATH` is mounted onto itself:
 
 - `--map /some/path` → `--ro-bind /some/path /some/path`
 - Relative paths are resolved against the project directory (`$PWD`).
-- If the path does not exist, `ai-jail` prints a warning to `stderr` and skips it.
+- If the path does not exist, `jail` prints a warning to `stderr` and skips it.
 
 ### `--net`
 
@@ -169,7 +169,7 @@ This project is heavily inspired by the article **"AI Agents: Garantindo a Prote
 
 - https://akitaonrails.com/2026/01/10/ai-agents-garantindo-a-protecao-do-seu-sistema/
 
-Many of the ideas and shell scripts from that article served as a direct basis for `ai-jail`.
+Many of the ideas and shell scripts from that article served as a direct basis for `jail`.
 
 ## License
 
