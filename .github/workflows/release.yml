@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     permissions:
       contents: write
@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
             asset_name: jail-x86_64-unknown-linux-gnu
-          - target: aarch64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
             asset_name: jail-aarch64-unknown-linux-gnu
 
     steps:
@@ -28,9 +28,6 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add target
-        run: rustup target add ${{ matrix.target }}
-
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
@@ -38,10 +35,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build release binary
-        run: cargo build --release --locked --target ${{ matrix.target }}
+        run: cargo build --release --locked
 
       - name: Determine version from Cargo.toml
         id: get_version
@@ -52,7 +49,7 @@ jobs:
       - name: Prepare artifact
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/jail dist/${{ matrix.asset_name }}
+          cp target/release/jail dist/${{ matrix.asset_name }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
