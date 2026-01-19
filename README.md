@@ -1,5 +1,7 @@
 # jail
 
+<img src="assets/logo.png">
+
 Lightweight sandbox to run AI agents and command-line tools with strong filesystem isolation, built on top of [bubblewrap (bwrap)](https://github.com/containers/bubblewrap).
 
 It plays a role similar to a `virtualenv`, but focused on **isolating filesystem access**: processes only see the current project directory (and a few system directories as read-only), reducing the risk of dangerous commands such as `rm -rf /` or leaking your real `$HOME`.
