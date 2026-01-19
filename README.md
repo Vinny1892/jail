@@ -1,6 +1,6 @@
 # jail
 
-<img src="assets/logo.png">
+<img src="assets/logo.png" width="380px">
 
 Lightweight sandbox to run AI agents and command-line tools with strong filesystem isolation, built on top of [bubblewrap (bwrap)](https://github.com/containers/bubblewrap).
 
